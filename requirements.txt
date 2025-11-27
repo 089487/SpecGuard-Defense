@@ -1,0 +1,29 @@
+# Core dependencies
+numpy
+mxnet>=1.6.0
+torch
+scipy
+
+# Machine learning libraries
+scikit-learn
+hdbscan
+
+# Visualization
+matplotlib
+seaborn
+
+# Experiment tracking
+wandb
+
+# Natural language processing (for LEAF reddit dataset)
+nltk
+
+# Data processing
+Pillow
+pandas
+
+# Deep learning frameworks (for LEAF)
+tensorflow
+
+# Development tools
+jupyter

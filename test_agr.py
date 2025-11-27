@@ -1,10 +1,12 @@
 from __future__ import print_function
 import torch.nn.functional as F
 import torch.nn as nn
+from tqdm import tqdm
 import nd_aggregation
+import numpy as np
+np.bool = np.bool_
 import mxnet as mx
 from mxnet import nd, autograd, gluon
-import numpy as np
 import random
 import argparse
 import byzantine
@@ -440,6 +442,7 @@ def main(args):
             mx.random.seed(seed)
             random.seed(seed)
             np.random.seed(seed)
+        print("Loading data...")
         train_data, test_data = load_data(args.dataset)
         
         # assign data to the server and clients
@@ -467,7 +470,7 @@ def main(args):
         avg_loss = 0
 
         # begin training        
-        for e in range(niter):       
+        for e in tqdm(range(niter)):       
             participating_clients = select_clients(
                 range(num_workers) , args.participation_rate)
             
@@ -506,6 +509,7 @@ def main(args):
                     param.set_data(ori_data)
             try:
                 avg_loss = (avg_loss/len(participating_clients)).asnumpy()[0]
+                print("Iteration %02d. Avg_loss %0.4f" % (e, avg_loss))
             except:
                 import pdb
                 pdb.set_trace()

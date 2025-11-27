@@ -1,4 +1,5 @@
 import numpy as np
+np.bool = np.bool_
 from mxnet import nd, autograd, gluon
 
 def no_byz(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000.):

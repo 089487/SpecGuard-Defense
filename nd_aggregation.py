@@ -1,6 +1,7 @@
+import numpy as np
+np.bool = np.bool_
 import mxnet as mx
 from mxnet import nd, autograd, gluon
-import numpy as np
 import byzantine
 import wandb
 from sklearn.metrics import roc_auc_score

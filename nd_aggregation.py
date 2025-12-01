@@ -26,9 +26,9 @@ def median(gradients, net, lr, nfake, byz, history,  fixed_rand, init_model, las
         param_list, sf = byz(param_list, net, lr, nfake, history,
                           fixed_rand,  init_model, last_50_model, last_grad, e, sf, "median")
 
-    else:
-        param_list, sf = byz(param_list, net, lr, nfake,
-                         history,  fixed_rand,  init_model, last_50_model, last_grad,e, sf)
+    else:"""
+    param_list, sf = byz(param_list, net, lr, nfake,
+                        history,  fixed_rand,  init_model, last_50_model, last_grad,e, sf)
     for param in param_list:
         mask = mx.nd.contrib.isnan(param) + mx.nd.contrib.isinf(param)
         param = mx.nd.where(mask, mx.nd.ones_like(param)*100000, param)

@@ -18,6 +18,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from utils import *
 import torch
+import wandb
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--server_pc", help="the number of data the server holds", type=int, default=100)
@@ -414,6 +415,30 @@ def select_clients(clients, frac=1.0):
 
 def main(args):
 
+    # Initialize wandb
+    wandb.init(
+        # project name = PoisonedFL_{attack type}_{aggregation}
+        project=f"PoisonedFL_{args.byz_type}_{args.aggregation}",
+        #project="PoisonedFL",
+        config={
+            "dataset": args.dataset,
+            "net": args.net,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "nworkers": args.nworkers,
+            "niter": args.niter,
+            "nfake": args.nfake,
+            "byz_type": args.byz_type,
+            "aggregation": args.aggregation,
+            "bias": args.bias,
+            "sf": args.sf,
+            "participation_rate": args.participation_rate,
+            "local_epoch": args.local_epoch,
+            "seed": args.seed,
+            "server_pc": args.server_pc,
+            "p": args.p,
+        }
+    )
 
     ctx = get_device(args.gpu)
 
@@ -449,6 +474,8 @@ def main(args):
         server_data, server_label, each_worker_data, each_worker_label = assign_data(
                                                                     train_data, args.bias, ctx, num_labels=num_labels, num_workers=num_workers, 
                                                                     server_pc=args.server_pc, p=args.p, dataset=args.dataset, seed=seed,num_inputs=num_inputs)
+        print("server data shape:", server_data.shape if server_data is not None else None)
+        print(each_worker_data[0].shape, each_worker_label[0].shape)
         # run a foward pass to really initialize the model
         data_count = []
         for data in each_worker_data:
@@ -510,6 +537,8 @@ def main(args):
             try:
                 avg_loss = (avg_loss/len(participating_clients)).asnumpy()[0]
                 print("Iteration %02d. Avg_loss %0.4f" % (e, avg_loss))
+                # Log training loss to wandb
+                wandb.log({"train/loss": avg_loss, "iteration": e})
             except:
                 import pdb
                 pdb.set_trace()
@@ -526,11 +555,20 @@ def main(args):
             elif args.aggregation == "median":
                 return_pare_list, sf = nd_aggregation.median(
                     grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e)
+            elif args.aggregation == "defense1":
+                return_pare_list, sf = nd_aggregation.defense1(
+                    grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e)
             elif args.aggregation == "mean_norm":
                 return_pare_list, sf = nd_aggregation.mean_norm(
                     grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
-            else:
-                raise NotImplementedError
+            elif args.aggregation == "specguard":
+                return_pare_list, sf = nd_aggregation.specguard(
+                    grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e,
+                    server_data=server_data, server_label=server_label, loss_fn=softmax_cross_entropy, batch_size=batch_size, ctx=ctx)
+            elif args.aggregation == "no":
+                return_pare_list, sf = nd_aggregation.no_aggregation(
+                    grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
+                #raise NotImplementedError
             if parti_nfake != 0:
                 if "norm" in args.aggregation:
                     last_grad = nd.mean(return_pare_list[:,:parti_nfake], axis=-1).copy()
@@ -545,14 +583,27 @@ def main(args):
                 test_accuracy = evaluate_accuracy(test_data, net, ctx)
                 test_acc_list.append(test_accuracy)
                 print("Iteration %02d. Test_acc %0.4f" % (e, test_accuracy))
+                # Log test accuracy to wandb
+                wandb.log({"test/accuracy": test_accuracy, "iteration": e})
                 
             if e % 50 == 0:
                 last_50_model = current_model
             history = (nd.concat(*[xx.reshape((-1, 1)) for xx in current_model], dim=0) - nd.concat(*[xx.reshape((-1, 1)) for xx in last_model], dim=0) )
             last_model = [param.data().copy() for param in net.collect_params().values()]
             
+            # Log scaling factor for poisonedfl attack
+            if args.byz_type == "poisonedfl":
+                wandb.log({"attack/scaling_factor": sf, "iteration": e})
 
             from os import path
+        
+        # Log final test accuracy
+        final_test_acc = evaluate_accuracy(test_data, net, ctx)
+        wandb.log({"test/final_accuracy": final_test_acc})
+        print("Final Test Accuracy: %0.4f" % final_test_acc)
+        
+        # Finish wandb run
+        wandb.finish()
                 
         del test_acc_list
         test_acc_list = []

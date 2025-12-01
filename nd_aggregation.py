@@ -22,7 +22,7 @@ def cos_sim_nd(p, q):
 # median
 def median(gradients, net, lr, nfake, byz, history,  fixed_rand, init_model, last_50_model, last_grad, sf, e):
     param_list = [nd.concat(*[xx.reshape((-1, 1)) for xx in x], dim=0) for x in gradients]
-    if byz == byzantine.fang_attack or byz == byzantine.opt_fang:
+    """if byz == byzantine.fang_attack or byz == byzantine.opt_fang:
         param_list, sf = byz(param_list, net, lr, nfake, history,
                           fixed_rand,  init_model, last_50_model, last_grad, e, sf, "median")
 

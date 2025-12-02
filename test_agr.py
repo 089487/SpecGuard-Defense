@@ -474,7 +474,8 @@ def main(args):
         server_data, server_label, each_worker_data, each_worker_label = assign_data(
                                                                     train_data, args.bias, ctx, num_labels=num_labels, num_workers=num_workers, 
                                                                     server_pc=args.server_pc, p=args.p, dataset=args.dataset, seed=seed,num_inputs=num_inputs)
-        print("server data shape:", server_data.shape if server_data is not None else None)
+        # server_data can be considered as the eval data (choosing from server_pc clients each having one data point)
+        print("server data shape:", server_data.shape, server_label.shape)
         print(each_worker_data[0].shape, each_worker_label[0].shape)
         # run a foward pass to really initialize the model
         data_count = []
@@ -496,7 +497,8 @@ def main(args):
 
         avg_loss = 0
 
-        # begin training        
+        # begin training     
+        V_ref = None   
         for e in tqdm(range(niter)):       
             participating_clients = select_clients(
                 range(num_workers) , args.participation_rate)
@@ -534,6 +536,41 @@ def main(args):
                 grad_list.append([( param.data().copy()- ori_data.copy()) for param, ori_data in zip(net.collect_params().values(), ori_para)])
                 for param, ori_data in zip(net.collect_params().values(), ori_para):
                     param.set_data(ori_data)
+            
+            print('grad_shape', len(grad_list[-1]),len(grad_list[0]))
+            if args.aggregation == "specguard" and (V_ref is None or e % 20 == 0):
+                # need to compute the gradiens for each server data and compute compact.SVD
+                server_grads = []
+                params = net.collect_params().values()
+
+                for i in range(server_data.shape[0]):
+                    # simply use net to compute the gradients
+
+                    ## zero the gradients
+                    for param in params:
+                        param.grad()[:] = 0
+                    with autograd.record():
+                        output = net(server_data[i].reshape((1,)+num_inputs[1:]))
+                        loss = softmax_cross_entropy(
+                            output, server_label[i].reshape((1,)))
+                    loss.backward()
+                    server_grads.append(nd.concat(*[param.grad().reshape((-1, 1)) for param in params], dim=0).reshape(1, -1))
+                server_grads = nd.concat(*server_grads, dim=0).reshape((server_data.shape[0], -1))
+
+                V_ref_base_k = 5
+                
+                ## center the gradients
+                mean_grad = nd.mean(server_grads, axis=0, keepdims=True)
+                centered_grads = server_grads - mean_grad
+                
+                ## SVD
+                print(centered_grads.shape)
+                G_ref_np = centered_grads.asnumpy() 
+                U, S, Vt = np.linalg.svd(G_ref_np,full_matrices=False)
+                V_ref = nd.array(Vt[:V_ref_base_k, :]) #(k,d)
+
+
+
             try:
                 avg_loss = (avg_loss/len(participating_clients)).asnumpy()[0]
                 print("Iteration %02d. Avg_loss %0.4f" % (e, avg_loss))
@@ -555,16 +592,12 @@ def main(args):
             elif args.aggregation == "median":
                 return_pare_list, sf = nd_aggregation.median(
                     grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e)
-            elif args.aggregation == "defense1":
-                return_pare_list, sf = nd_aggregation.defense1(
-                    grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e)
             elif args.aggregation == "mean_norm":
                 return_pare_list, sf = nd_aggregation.mean_norm(
                     grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
             elif args.aggregation == "specguard":
-                return_pare_list, sf = nd_aggregation.specguard(
-                    grad_list, net, lr / batch_size, parti_nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e,
-                    server_data=server_data, server_label=server_label, loss_fn=softmax_cross_entropy, batch_size=batch_size, ctx=ctx)
+                return_pare_list, sf, retained_count = nd_aggregation.specguard(
+                    grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, V_ref)
             elif args.aggregation == "no":
                 return_pare_list, sf = nd_aggregation.no_aggregation(
                     grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
@@ -575,6 +608,7 @@ def main(args):
                 else:
                     last_grad = nd.mean(
                         nd.concat(*return_pare_list[:parti_nfake], dim=1), axis=-1).copy()
+                print("last_grad shape:", last_grad.shape,last_grad)
             del grad_list
             del return_pare_list
             grad_list = []
@@ -594,6 +628,8 @@ def main(args):
             # Log scaling factor for poisonedfl attack
             if args.byz_type == "poisonedfl":
                 wandb.log({"attack/scaling_factor": sf, "iteration": e})
+                if args.aggregation == "specguard":
+                    wandb.log({"defense/retained_count": retained_count, "iteration": e})
 
             from os import path
         

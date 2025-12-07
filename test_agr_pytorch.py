@@ -455,7 +455,7 @@ def assign_data(train_data, bias, device, num_labels=10, num_workers=100, server
         for _, (data, label) in enumerate(train_data):
             for (x, y) in zip(data, label):
                 x = x.to(device).reshape(1, 3, 32, 32)
-                y = y.to(device)
+                y = y.to(device).view(-1)
 
                 upper_bound = (y.item()) * (1. - bias) / \
                     (num_labels - 1) + bias

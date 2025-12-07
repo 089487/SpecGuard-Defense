@@ -741,6 +741,9 @@ def main(args):
         elif args.aggregation == "specguard":
             return_pare_list, sf, retained_count = nd_aggregation.specguard(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, V_ref)
+        elif args.aggregation == "specguard2":
+            return_pare_list, sf, retained_count = nd_aggregation.specguard2(
+                grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
         elif args.aggregation == "fltrust":
             return_pare_list, sf = nd_aggregation.fltrust(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, server_grads)

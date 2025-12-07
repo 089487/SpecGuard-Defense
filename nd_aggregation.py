@@ -192,7 +192,7 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
     print(len(param_list),len(param_list[0]),len(param_list[0][0]))
     # need to flatten param_list to be (num_clients, d)
 
-    G_client = flatten_and_stack_client_updates(param_list)  # Shape: (num_clients, d)
+    G_client =nd.concat(*param_list, dim=1).T #flatten_and_stack_client_updates(param_list)  # Shape: (num_clients, d)
     print('flattened_param_list shape', G_client.shape)
     # if G_client is (num,d,1), convert to (num,d)
     G_client = G_client.reshape((G_client.shape[0], G_client.shape[1]))

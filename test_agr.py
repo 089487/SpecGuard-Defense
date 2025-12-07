@@ -418,7 +418,7 @@ def main(args):
     # Initialize wandb
     wandb.init(
         # project name = PoisonedFL_{attack type}_{aggregation}
-        project=f"PoisonedFL_{args.byz_type}_{args.aggregation}",
+        project=f"PoisonedFL_{args.byz_type}_{args.aggregation}_{args.nworkers}workers_{args.nfake}_attacker_{args.server_pc}_truedata",
         #project="PoisonedFL",
         config={
             "dataset": args.dataset,
@@ -482,6 +482,10 @@ def main(args):
         for data in each_worker_data:
             data_count.append(data.shape[0])
         net(nd.zeros(num_inputs, ctx=ctx))
+        # print summary
+        print("Model Summary:")
+        net.summary(nd.zeros(num_inputs, ctx=ctx))
+
 
         # set initial parameters
         init_model = [param.data().copy() for param in net.collect_params().values()]

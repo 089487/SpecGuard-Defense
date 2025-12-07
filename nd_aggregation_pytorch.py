@@ -309,5 +309,81 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
             idx += param.numel()
     return param_list, sf,len(retained_param_list)
 
+def specguard2(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, last_50_model, last_grad, sf, e):
+    device = next(net.parameters()).device
+    param_list = [torch.cat([xx.reshape(-1, 1) for xx in x], dim=0).to(device) for x in gradients]
+    """if byz == byzantine.fang_attack or byz == byzantine.opt_fang:
+        param_list, sf = byz(param_list, net, lr, nfake, history,
+                          fixed_rand,  init_model, last_50_model, last_grad, e, sf, "median")   
+    else:"""
+    param_list, sf = byz(param_list, net, lr, nfake,
+                        history,  fixed_rand,  init_model, last_50_model, last_grad, e, sf)
 
+    for i, param in enumerate(param_list):
+        mask = torch.isnan(param) | torch.isinf(param)
+        assert mask.sum() < 1
+        param_list[i] = torch.where(mask, torch.ones_like(param)*100000, param)
+    
+    # for i in range(10):
+    #     print(param_list[i].sum().item(),param_list[i].abs().sum().item())
+    
+    # Ensure V_ref is a torch tensor on the same device
+    
+    # print('V_ref shape', V_ref.shape)
+    # print(len(param_list),len(param_list[0]),len(param_list[0][0]))
+    # need to flatten param_list to be (num_clients, d)
 
+    #G_client = flatten_and_stack_client_updates(param_list)  # Shape: (num_clients, d)
+    G_client = torch.cat(param_list, dim=1).T # Shape: (num_clients, d)
+
+    centered_G = G_client - G_client.mean(dim=0, keepdim=True)
+    # compute V_ref via SVD on the G_client
+    U, S, Vh = torch.linalg.svd(centered_G, full_matrices=False)
+    V_ref = Vh[:5, :].to(device)  # Take top 5 right singular vectors
+
+    print('V_ref shape', V_ref.shape)
+
+    # print('flattened_param_list shape', G_client.shape)
+    # if G_client is (num,d,1), convert to (num,d)
+    # G_client = G_client.reshape((G_client.shape[0], G_client.shape[1]))
+    
+    # GPU-accelerated matrix multiplication
+    projection_matrix = torch.mm(V_ref, G_client.T) # [5, 36]
+    E_signal = torch.sum(projection_matrix*projection_matrix, dim=0) # [36] clients proj_sum^2
+    E_sum = torch.sum(G_client*G_client, dim=1) # [36] clients length^2
+    R_scores = E_signal / (E_sum + 1e-8) 
+    # print(R_scores)
+    # threshold = 0.1 # 閾值，需實驗調優
+    # mask_retained = R_scores >= threshold
+    # retained_indices = torch.nonzero(mask_retained).squeeze(-1).tolist()
+    _, indeces = torch.topk(R_scores, k=int(G_client.shape[0]*0.25), largest=True)
+    print("SpecGuard R_scores:", R_scores)
+    print("indeces", indeces)
+    retained_indices = indeces.squeeze(-1).tolist()
+
+    ###
+    cnt = 0
+    for i in retained_indices:
+        if i < nfake:
+            cnt += 1
+    print(f"SpecGuard retained {len(retained_indices)} clients, including {cnt} attackers, ratio {cnt/(len(retained_indices)+1e-8):.2f}")
+    ###
+
+    # use median to aggregate the retained gradients
+    retained_param_list = [param_list[i] for i in retained_indices]
+    if len(retained_param_list) == 0:
+        print("No reliable clients detected, skipping aggregation.")
+        return param_list, sf,0
+    
+    sorted_array = torch.sort(torch.cat(retained_param_list, dim=1), dim=-1)[0]
+    if sorted_array.shape[-1] % 2 == 1:
+        global_update = sorted_array[:, int(sorted_array.shape[-1] / 2)]
+    else:
+        global_update = (sorted_array[:, int((sorted_array.shape[-1] / 2 - 1))] + sorted_array[:, int((sorted_array.shape[-1] / 2))]) / 2   
+    # update the global model
+    idx = 0
+    with torch.no_grad():
+        for j, param in enumerate(net.parameters()):
+            param.add_(global_update[idx:(idx+param.numel())].reshape(param.shape))
+            idx += param.numel()
+    return param_list, sf,len(retained_param_list)

@@ -748,7 +748,7 @@ def main(args):
             return_pare_list, sf = nd_aggregation.no_aggregation(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
             #raise NotImplementedError
-        if parti_nfake != 0:
+        if parti_nfake != 0: # last_grad: the previous mean malicious update
             if "norm" in args.aggregation:
                 last_grad = torch.mean(return_pare_list[:,:parti_nfake], dim=-1).clone()
             else:
@@ -767,7 +767,9 @@ def main(args):
             wandb.log({"test/accuracy": test_accuracy, "iteration": e})
             
         if e % 50 == 0:
-            last_50_model = current_model
+            last_50_model = current_model 
+
+        # history: last global update
         history = (torch.cat([xx.reshape(-1, 1) for xx in current_model], dim=0) - torch.cat([xx.reshape(-1, 1) for xx in last_model], dim=0) )
         last_model = [param.data.clone() for param in net.parameters()]
         

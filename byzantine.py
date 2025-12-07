@@ -78,13 +78,6 @@ def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model
             v[i] = nd.expand_dims(mal_update, axis=-1)
     return v, sf
 
-
-
-
-
-
-
-
 def random_attack(v, net, lr, nfake, history, fixed_rand,  init_model, last_50_model, last_grad,e, scaling_factor=100000.):
     for i in range(nfake):
         v[i] = scaling_factor * nd.random.normal(loc=0, scale=1, shape=v[0].shape)

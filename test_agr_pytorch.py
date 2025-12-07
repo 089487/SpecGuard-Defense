@@ -511,7 +511,8 @@ def main(args):
     # Initialize wandb
     wandb.init(
         # project name = PoisonedFL_{attack type}_{aggregation}
-        project=f"pytorch_PoisonedFL_{args.byz_type}_{args.aggregation}",
+        project=f"pytorch_PoisonedFL_{args.dataset}",
+        name=f"{args.byz_type}_{args.aggregation}",
         #project="PoisonedFL",
         config={
             "dataset": args.dataset,

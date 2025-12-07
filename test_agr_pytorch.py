@@ -183,7 +183,7 @@ def get_byz(byz_type):
     # get the attack type
     if byz_type == "no":
         return byzantine.no_byz
-    elif byz_type == 'trim_attack':
+    elif byz_type == 'fang_attack':
         return byzantine.fang_attack
     elif byz_type == 'lie_attack':
         return byzantine.lie_attack
@@ -750,7 +750,6 @@ def main(args):
         elif args.aggregation == "no":
             return_pare_list, sf = nd_aggregation.no_aggregation(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
-            #raise NotImplementedError
         if parti_nfake != 0: # last_grad: the previous mean malicious update
             if "norm" in args.aggregation:
                 last_grad = torch.mean(return_pare_list[:,:parti_nfake], dim=-1).clone()

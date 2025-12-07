@@ -30,7 +30,7 @@ def score(gradient, v, nbyz):
     return torch.sum(sorted_distance[1:(1+num_neighbours)]).item()
 
 
-def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000., gamma=0):
+def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000., gamma=1.2):
     # k_99 and k_95 for binomial variable for different d for different networks
     if fixed_rand.shape[0] == 1204682:
         k_95 = 603244
@@ -79,7 +79,7 @@ def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model
         print("mal_update", mal_update)
         for i in range(nfake):
             epsilon = torch.randn(mal_update.shape, device=mal_update.device)
-            noise = gamma * epsilon * lamda_succ / (torch.norm(epsilon) + 1e-9)
+            noise = gamma * epsilon * fixed_rand * lamda_succ / (torch.norm(epsilon) + 1e-9)
             v[i] = torch.unsqueeze(mal_update + noise, dim=-1)
             # v[i] = torch.unsqueeze(mal_update, dim=-1)
     return v, sf

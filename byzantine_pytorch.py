@@ -30,7 +30,7 @@ def score(gradient, v, nbyz):
     return torch.sum(sorted_distance[1:(1+num_neighbours)]).item()
 
 
-def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000.):
+def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000., gamma=0):
     # k_99 and k_95 for binomial variable for different d for different networks
     if fixed_rand.shape[0] == 1204682:
         k_95 = 603244
@@ -53,9 +53,11 @@ def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model
         # calculate unit scale vector
         current_model = [param.data.clone() for param in net.parameters()]
         history_norm = torch.norm(history)
-        last_grad_norm = torch.norm(last_grad)
-        scale = torch.norm(history - torch.unsqueeze(last_grad, dim=-1) * history_norm / (last_grad_norm + 1e-9), dim=1)
-        deviation = scale * fixed_rand / (torch.norm(scale) + 1e-9)
+        last_grad_norm = torch.norm(last_grad) # scale: v (unnormalized)
+        # scale = torch.norm(history - torch.unsqueeze(last_grad, dim=-1) * history_norm / (last_grad_norm + 1e-9), dim=1)
+        # scale = torch.abs(history - torch.unsqueeze(last_grad, dim=-1) * history_norm / (last_grad_norm + 1e-9)).squeeze()
+        scale = torch.abs(torch.squeeze(history) - last_grad * history_norm / (last_grad_norm + 1e-9))
+        deviation = scale * fixed_rand / (torch.norm(scale) + 1e-9) # v@s (g=lambda*deviation)
         
         # calculate scaling factor lambda
         if e % 50 == 0:
@@ -76,7 +78,10 @@ def poisonedfl(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model
         print(sf, lamda_succ, history_norm)
         print("mal_update", mal_update)
         for i in range(nfake):
-            v[i] = torch.unsqueeze(mal_update, dim=-1)
+            epsilon = torch.randn(mal_update.shape, device=mal_update.device)
+            noise = gamma * epsilon * lamda_succ / (torch.norm(epsilon) + 1e-9)
+            v[i] = torch.unsqueeze(mal_update + noise, dim=-1)
+            # v[i] = torch.unsqueeze(mal_update, dim=-1)
     return v, sf
 
 

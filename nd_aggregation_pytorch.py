@@ -364,7 +364,12 @@ def specguard2(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model,
     # threshold = 0.1 # 閾值，需實驗調優
     # mask_retained = R_scores >= threshold
     # retained_indices = torch.nonzero(mask_retained).squeeze(-1).tolist()
-    _, indeces = torch.topk(R_scores, k=int(G_client.shape[0]*0.25), largest=True)
+    #_, indeces = torch.topk(R_scores, k=int(G_client.shape[0]*0.25), largest=True)
+    sorted_R, indeces = torch.sort(R_scores, descending=False)
+    lower_bound = int(G_client.shape[0]*0.25)
+    upper_bound = int(G_client.shape[0]*0.75)
+    indeces = indeces[lower_bound:upper_bound]
+
     print("SpecGuard R_scores:", R_scores)
     print("indeces", indeces)
     retained_indices = indeces.squeeze(-1).tolist()

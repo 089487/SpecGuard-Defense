@@ -329,31 +329,26 @@ def assign_data(train_data, bias, device, num_labels=10, num_workers=100, server
     if dataset == "purchase":
         server_data = []
         server_label = [] 
-        # random sample n train_data index from len(train_data[0])
-        indexs = random.sample(range(len(train_data[0])), server_pc)
-        for i in indexs:
+        for i in range(len(train_data[0])):
+            if i >= server_pc:
+                break
             rd = random.randint(1, train_data[0][i].shape[0]-1)
             server_data.append(train_data[0][i][rd].unsqueeze(0))
             server_label.append(train_data[1][i][rd].unsqueeze(0))
-            # remove the selected data point from the worker's data
-            train_data[0][i] = torch.cat([train_data[0][i][:rd], train_data[0][i][rd+1:]], dim=0)
-            train_data[1][i] = torch.cat([train_data[1][i][:rd], train_data[1][i][rd+1:]], dim=0)
         server_data = torch.cat(server_data, dim=0) if server_pc > 0 else None
         server_label = torch.cat(server_label, dim=0) if server_pc > 0 else None
         return server_data, server_label, train_data[0], train_data[1]
     
     elif dataset == "FEMNIST":
+        print(len(train_data[0]), train_data[0][0].shape)
         server_data = []
         server_label = [] 
-        # random sample n train_data index from len(train_data[0])
-        indexs = random.sample(range(len(train_data[0])), server_pc)
-        for i in indexs:
+        for i in range(len(train_data[0])):
+            if i >= server_pc:
+                break
             rd = random.randint(1, train_data[0][i].shape[0]-1)
             server_data.append(train_data[0][i][rd].unsqueeze(0)) ####
             server_label.append(train_data[1][i][rd].unsqueeze(0))
-            # remove the selected data point from the worker's data
-            train_data[0][i] = torch.cat([train_data[0][i][:rd], train_data[0][i][rd+1:]], dim=0)
-            train_data[1][i] = torch.cat([train_data[1][i][:rd], train_data[1][i][rd+1:]], dim=0)
         server_data = torch.cat(server_data, dim=0) if server_pc > 0 else None
         server_label = torch.cat(server_label, dim=0) if server_pc > 0 else None
         return server_data, server_label, train_data[0], train_data[1]

@@ -59,6 +59,93 @@ def median(gradients, net, lr, nfake, byz, history,  fixed_rand, init_model, las
             idx += param.numel()
     return param_list, sf
 
+def krum(gradients, net, lr, nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e):
+    device = next(net.parameters()).device
+    # Flatten gradients into a list of (d, 1) tensors
+    param_list = [torch.cat([xx.reshape(-1, 1) for xx in x], dim=0).to(device) for x in gradients]
+    
+    # Apply attack
+    if byz == byzantine.fang_attack or byz == byzantine.opt_fang:
+        param_list, sf = byz(param_list, net, lr, nfake, history,
+                          fixed_rand,  init_model, last_50_model, last_grad, e, sf, "krum")
+    else:
+        param_list, sf = byz(param_list, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, sf)
+
+    # Stack all updates to (d, n)
+    v = torch.cat(param_list, dim=1)
+    if byz == byzantine.no_byz:
+        v = v[:, nfake:]  # Exclude attackers for no_byz case
+    n = v.shape[1]
+    f = nfake
+    # Krum parameter: sum of distances to n - f - 2 neighbors
+    k = n - f - 2
+    
+    # Compute pairwise Euclidean distances (n, n)
+    # v.T is (n, d), result is (n, n)
+    dists = torch.cdist(v.T, v.T)
+    
+    # Find k+1 smallest distances (including self-distance which is 0)
+    # largest=False means smallest
+    topk_dists, _ = torch.topk(dists, k + 1, dim=1, largest=False)
+    
+    # Krum score is sum of squared distances
+    scores = torch.sum(topk_dists**2, dim=1)
+    
+    # Select the client with the minimum score
+    idx = torch.argmin(scores)
+    global_update = v[:, idx]
+    
+    # Update global model
+    idx_p = 0
+    with torch.no_grad():
+        for j, param in enumerate(net.parameters()):
+            param.add_(global_update[idx_p:(idx_p+param.numel())].reshape(param.shape))
+            idx_p += param.numel()
+            
+    return param_list, sf
+
+
+def multi_krum(gradients, net, lr, nfake, byz, history, fixed_rand, init_model, last_50_model, last_grad, sf, e):
+    device = next(net.parameters()).device
+    param_list = [torch.cat([xx.reshape(-1, 1) for xx in x], dim=0).to(device) for x in gradients]
+    
+    # Apply attack
+    if byz == byzantine.fang_attack or byz == byzantine.opt_fang:
+        param_list, sf = byz(param_list, net, lr, nfake, history,
+                          fixed_rand,  init_model, last_50_model, last_grad, e, sf, "krum")
+    else:
+        param_list, sf = byz(param_list, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, sf)
+    
+    v = torch.cat(param_list, dim=1)
+    if byz == byzantine.no_byz:
+        v = v[:, nfake:]  # Exclude attackers for no_byz case
+    n = v.shape[1]
+    f = nfake
+    k = n - f - 2
+    # Multi-Krum selects 'm' benign clients (usually n - f)
+    m = n - f
+    
+    # Compute scores similar to Krum
+    dists = torch.cdist(v.T, v.T)
+    topk_dists, _ = torch.topk(dists, k + 1, dim=1, largest=False)
+    scores = torch.sum(topk_dists**2, dim=1)
+    
+    # Select top m clients with smallest scores
+    _, indices = torch.topk(scores, m, largest=False)
+    
+    # Compute mean of selected updates
+    selected_updates = v[:, indices]
+    global_update = torch.mean(selected_updates, dim=1)
+    
+    # Update global model
+    idx_p = 0
+    with torch.no_grad():
+        for j, param in enumerate(net.parameters()):
+            param.add_(global_update[idx_p:(idx_p+param.numel())].reshape(param.shape))
+            idx_p += param.numel()
+            
+    return param_list, sf
+
 # mean
 def simple_mean(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, last_50_model, last_grad, sf, e):
     device = next(net.parameters()).device
@@ -115,10 +202,10 @@ def score_gmm(gradient, v, nfake):
 def trim(gradients, net, lr, nfake, byz, history,  fixed_rand,  init_model, last_50_model, last_grad, sf, e):
     device = next(net.parameters()).device
     param_list = [torch.cat([xx.reshape(-1, 1) for xx in x], dim=0).to(device) for x in gradients]
-    if byz == byzantine.fang_attack or byz == byzantine.opt_fang: 
-        param_list, sf = byz(param_list, net, lr, nfake, history, fixed_rand,  init_model, last_50_model, last_grad,e, sf, "trim")
-    else: 
-        param_list, sf = byz(param_list, net, lr, nfake, history,  fixed_rand,  init_model, last_50_model, last_grad,e, sf)
+    # if byz == byzantine.fang_attack or byz == byzantine.opt_fang: 
+    #     param_list, sf = byz(param_list, net, lr, nfake, history, fixed_rand,  init_model, last_50_model, last_grad,e, sf, "trim")
+    # else: 
+    param_list, sf = byz(param_list, net, lr, nfake, history,  fixed_rand,  init_model, last_50_model, last_grad,e, sf)
     b = nfake
     n = len(param_list)
     m = n - b*2

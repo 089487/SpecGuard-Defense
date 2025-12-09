@@ -646,7 +646,7 @@ def main(args):
                         # nn.utils.clip_grad_norm_(net.parameters(), max_norm=10.0)
                         for param in net.parameters():
                             if param.grad is not None:
-                                param.data.sub_(lr/batch_size * param.grad.data)
+                                param.sub_(lr/batch_size * param.grad.data)
                     
             grad_list.append([( param.data.clone()- ori_data.clone()) for param, ori_data in zip(net.parameters(), ori_para)])
             with torch.no_grad():
@@ -708,7 +708,7 @@ def main(args):
                         # nn.utils.clip_grad_norm_(net.parameters(), max_norm=10.0)
                         for param in net.parameters():
                             if param.grad is not None:
-                                param.data.sub_(lr/batch_size * param.grad.data)
+                                param.sub_(lr/batch_size * param.grad.data)
                     
             server_grads = [( param.data.clone()- ori_data.clone()) for param, ori_data in zip(net.parameters(), ori_para)]
             with torch.no_grad():
@@ -748,6 +748,12 @@ def main(args):
         elif args.aggregation == "fltrust":
             return_pare_list, sf = nd_aggregation.fltrust(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, server_grads)
+        elif args.aggregation == "krum":
+            return_pare_list, sf = nd_aggregation.krum(
+                grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
+        elif args.aggregation == "multi_krum":
+            return_pare_list, sf = nd_aggregation.multi_krum(
+                grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
         elif args.aggregation == "no":
             return_pare_list, sf = nd_aggregation.no_aggregation(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)

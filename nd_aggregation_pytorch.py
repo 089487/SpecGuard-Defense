@@ -82,7 +82,7 @@ def mean_norm(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
     param_list = torch.cat(param_list, dim=1)
     param_norms = torch.norm(param_list, dim=0, keepdim=True)
     nb = torch.sum(param_norms[0,nfake:])/(len(param_norms[0])-nfake)
-    param_list = param_list * torch.minimum(param_norms + 1e-7, nb) / (param_norms+ 1e-7)
+    param_list = param_list * torch.minimum(param_norms + 1e-7, nb) / (param_norms + 1e-7)
     global_update = torch.mean(param_list, dim=-1)
     idx = 0
     with torch.no_grad():
@@ -296,6 +296,7 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
         if i < nfake:
             cnt += 1
     print(f"SpecGuard retained {len(retained_indices)} clients, including {cnt} attackers, ratio {cnt/(len(retained_indices)+1e-8):.2f}")
+    wandb.log({"defense/retained_attacker_ratio": cnt/(len(retained_indices)+1e-8)})
     ###
 
     # use median to aggregate the retained gradients
@@ -380,6 +381,7 @@ def specguard2(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model,
         if i < nfake:
             cnt += 1
     print(f"SpecGuard retained {len(retained_indices)} clients, including {cnt} attackers, ratio {cnt/(len(retained_indices)+1e-8):.2f}")
+    wandb.log({"defense/retained_attacker_ratio": cnt/(len(retained_indices)+1e-8)})
     ###
 
     # use median to aggregate the retained gradients

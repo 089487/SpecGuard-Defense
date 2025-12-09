@@ -146,44 +146,61 @@ def opt_fang(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, 
 
 
 def min_max(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000.):
-    """Min-Max attack"""
-    if len(v) <= nfake:
-        return v, scaling_factor
+    """
+    Min-Sum Attack (NDSS 2021)
+    Constraint: Sum of Squared Errors (SSE) to all other updates <= Max SSE of benign
+    Target: Trimmed Mean, Median, generalized median defenses
+    """
+    benign_updates = torch.stack(v[nfake:]) # (n_benign, d, 1)
+    mu = torch.mean(benign_updates, dim=0, keepdim=True) # (1, d, 1)
+
+    max_sse_benign = torch.max(torch.norm(benign_updates - benign_updates.permute(2, 1, 0), dim=1))
     
-    # Compute benign updates
-    benign_updates = torch.stack([v[i].squeeze() for i in range(nfake, len(v))], dim=0)
+    attack_dir = -mu / (torch.norm(mu) + 1e-9)
     
-    # Find the update with maximum norm
-    norms = torch.norm(benign_updates, dim=1)
-    max_idx = torch.argmax(norms)
-    max_update = benign_updates[max_idx]
+    step = scaling_factor * torch.norm(mu)
+    best_gamma = 0.0
+    benign_updates = benign_updates - mu
     
-    # Flip the sign and amplify
-    mal_update = -scaling_factor * max_update / (torch.norm(max_update) + 1e-9)
-    
+    for _ in range(50):
+        if torch.norm(benign_updates - attack_dir * (best_gamma + step), dim=1).max() <= max_sse_benign:
+            best_gamma += step
+        step /= 2.0
+        if step < 1e-8:
+            break
     for i in range(nfake):
-        v[i] = mal_update.unsqueeze(-1)
-    
+        v[i] = torch.squeeze(mu + attack_dir * best_gamma, dim=0)
+        
     return v, scaling_factor
 
-
 def min_sum(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000.):
-    """Min-Sum attack"""
-    if len(v) <= nfake:
-        return v, scaling_factor
+    """
+    Min-Sum Attack (NDSS 2021)
+    Constraint: Sum of Squared Errors (SSE) to all other updates <= Max SSE of benign
+    Target: Trimmed Mean, Median, generalized median defenses
+    """
+    benign_updates = torch.stack(v[nfake:]) # (n_benign, d, 1)
+    mu = torch.mean(benign_updates, dim=0, keepdim=True) # (1, d, 1)
     
-    # Compute benign updates
-    benign_updates = torch.stack([v[i].squeeze() for i in range(nfake, len(v))], dim=0)
+    dist_sums = torch.norm(benign_updates - benign_updates.permute(2, 1, 0), dim=1).sum(dim=0)
+        
+    max_sse_benign = torch.max(dist_sums)
     
-    # Compute mean of benign updates
-    mean_update = torch.mean(benign_updates, dim=0)
+    attack_dir = -mu / (torch.norm(mu) + 1e-9)
     
-    # Flip and scale
-    mal_update = -scaling_factor * mean_update / (torch.norm(mean_update) + 1e-9)
+    step = scaling_factor * torch.norm(mu)
+    best_gamma = 0.0
+    benign_updates = benign_updates - mu
     
+    for _ in range(50):
+        if torch.norm(benign_updates - attack_dir * (best_gamma + step), dim=1).sum() <= max_sse_benign:
+            best_gamma += step
+        step /= 2.0
+        if step < 1e-8:
+            break
     for i in range(nfake):
-        v[i] = mal_update.unsqueeze(-1)
-    
+        v[i] = torch.squeeze(mu + attack_dir * best_gamma, dim=0)
+        
     return v, scaling_factor
 
 
@@ -191,7 +208,8 @@ def random_attack(v, net, lr, nfake, history, fixed_rand, init_model, last_50_mo
     """Random Gaussian noise attack"""
     device = v[0].device if isinstance(v[0], torch.Tensor) else torch.device('cpu')
     for i in range(nfake):
-        v[i] = scaling_factor * torch.randn(v[0].shape, device=device)
+        noise = torch.randn(v[i].shape, device=device)
+        v[i] = scaling_factor * noise / (torch.norm(noise) + 1e-9) * torch.norm(history)
     return v, scaling_factor
 
 
@@ -199,6 +217,7 @@ def init_attack(v, net, lr, nfake, history, fixed_rand, init_model, last_50_mode
     """Attack towards initial model"""
     current_model = [param.data.clone() for param in net.parameters()]
     direction = torch.cat([xx.reshape((-1, 1)) for xx in init_model], dim=0) - torch.cat([xx.reshape((-1, 1)) for xx in current_model], dim=0)
+    direction = direction / (torch.norm(direction) + 1e-9) * torch.norm(history)
     for i in range(nfake):
         v[i] = scaling_factor * direction
     return v, scaling_factor

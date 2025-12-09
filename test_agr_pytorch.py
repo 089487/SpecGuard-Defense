@@ -779,8 +779,6 @@ def main(args):
         # Log scaling factor for poisonedfl attack
         if args.byz_type == "poisonedfl":
             wandb.log({"attack/scaling_factor": sf, "iteration": e})
-            if args.aggregation == "specguard":
-                wandb.log({"defense/retained_count": retained_count, "iteration": e})
 
         from os import path
     

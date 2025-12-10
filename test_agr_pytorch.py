@@ -685,7 +685,7 @@ def main(args):
             U, S, Vt = torch.linalg.svd(centered_grads, full_matrices=False)
             V_ref = Vt[:V_ref_base_k, :] #(k,d)
 
-        elif args.aggregation == "fltrust" and (server_grads is None or e % 20 == 0):
+        elif args.aggregation == "fltrust" and (server_grads is None or e % 1 == 0):
             ori_para = [param.data.clone() for param in net.parameters()]
             for _ in range(args.local_epoch):
                 shuffled_order = np.random.choice(list(range(server_data.shape[0])), size=server_data.shape[0], replace=False)

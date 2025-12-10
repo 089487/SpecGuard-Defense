@@ -324,9 +324,10 @@ def min_sum(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, l
 def random_attack(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, last_grad, e, scaling_factor=100000.):
     """Random Gaussian noise attack"""
     device = v[0].device if isinstance(v[0], torch.Tensor) else torch.device('cpu')
+    hist_norm = torch.norm(history) if isinstance(history, torch.Tensor) else 1.0
     for i in range(nfake):
         noise = torch.randn(v[i].shape, device=device)
-        v[i] = scaling_factor * noise / (torch.norm(noise) + 1e-9) * torch.norm(history)
+        v[i] = scaling_factor * noise / (torch.norm(noise) + 1e-9) * hist_norm
     return v, scaling_factor
 
 
@@ -334,7 +335,8 @@ def init_attack(v, net, lr, nfake, history, fixed_rand, init_model, last_50_mode
     """Attack towards initial model"""
     current_model = [param.data.clone() for param in net.parameters()]
     direction = torch.cat([xx.reshape((-1, 1)) for xx in init_model], dim=0) - torch.cat([xx.reshape((-1, 1)) for xx in current_model], dim=0)
-    direction = direction / (torch.norm(direction) + 1e-9) * torch.norm(history)
+    hist_norm = torch.norm(history) if isinstance(history, torch.Tensor) else 1.0
+    direction = direction / (torch.norm(direction) + 1e-9) * hist_norm
     for i in range(nfake):
         v[i] = scaling_factor * direction
     return v, scaling_factor

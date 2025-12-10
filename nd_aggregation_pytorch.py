@@ -259,10 +259,10 @@ def fltrust(gradients, net, lr, nfake, byz, history, fixed_rand, init_model, las
     g_clients = torch.cat(param_list, dim=1)  # Shape: (d, n_clients)
 
     cos_sim = F.cosine_similarity(g0, g_clients, dim=0)  # Shape: (n_clients,)
-    bias = -0.1
-    # trust_score = torch.relu((cos_sim + bias) / (1 + bias)) # Shape: (n_clients,)
+    bias = 0.0
+    trust_score = torch.relu((cos_sim + bias) / (1 + bias)) # Shape: (n_clients,)
     # trust_score = torch.where(cos_sim > 0.1, cos_sim, torch.zeros_like(cos_sim))
-    trust_score = torch.where(cos_sim > 0.1, torch.ones_like(cos_sim), torch.zeros_like(cos_sim))
+    # trust_score = torch.where(cos_sim > 0.1, torch.ones_like(cos_sim), torch.zeros_like(cos_sim))
     print("FLTrust trust_score:", trust_score)
     print(f"attacker's total trust score: {trust_score[:nfake].sum().item():.4f}, benign's total trust score: {trust_score[nfake:].sum().item():.4f}")
 
@@ -368,7 +368,7 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
     #_, indeces = torch.topk(R_scores, k=int(G_client.shape[0]*0.25), largest=True)
 
     # not use topk but use middle 50%
-    sorted_R, indeces = torch.sort(R_scores, descending=False)
+    sorted_R, indeces = torch.sort(R_scores, descending=True)
     lower_bound = int(G_client.shape[0]*0) #.25)
     upper_bound = int(G_client.shape[0]*0.75)
     indeces = indeces[lower_bound:upper_bound]

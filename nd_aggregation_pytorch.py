@@ -369,7 +369,7 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
 
     # not use topk but use middle 50%
     sorted_R, indeces = torch.sort(R_scores, descending=False)
-    lower_bound = int(G_client.shape[0]*0.25)
+    lower_bound = int(G_client.shape[0]*0) #.25)
     upper_bound = int(G_client.shape[0]*0.75)
     indeces = indeces[lower_bound:upper_bound]
 
@@ -386,7 +386,7 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
     wandb.log({"defense/retained_attacker_ratio": cnt/(len(retained_indices)+1e-8)})
     ###
 
-    # use median to aggregate the retained gradients
+    """# use median to aggregate the retained gradients
     retained_param_list = [param_list[i] for i in retained_indices]
     if len(retained_param_list) == 0:
         print("No reliable clients detected, skipping aggregation.")
@@ -397,6 +397,18 @@ def specguard(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model, 
         global_update = sorted_array[:, int(sorted_array.shape[-1] / 2)]
     else:
         global_update = (sorted_array[:, int((sorted_array.shape[-1] / 2 - 1))] + sorted_array[:, int((sorted_array.shape[-1] / 2))]) / 2   
+    # update the global model
+    idx = 0
+    with torch.no_grad():
+        for j, param in enumerate(net.parameters()):
+            param.add_(global_update[idx:(idx+param.numel())].reshape(param.shape))
+            idx += param.numel()"""
+    # use mean to aggregate the retained gradients
+    retained_param_list = [param_list[i] for i in retained_indices]
+    if len(retained_param_list) == 0:
+        print("No reliable clients detected, skipping aggregation.")
+        return param_list, sf,0
+    global_update = torch.mean(torch.cat(retained_param_list, dim=1), dim=-1)
     # update the global model
     idx = 0
     with torch.no_grad():

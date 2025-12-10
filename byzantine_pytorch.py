@@ -98,6 +98,7 @@ def lie_attack(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model
     
     # Craft malicious updates: mean - z * std
     z = 3.0  # Standard deviation multiplier
+    # z = 0.36
     mal_update = mean_update - z * std_update
     
     for i in range(nfake):
@@ -244,8 +245,8 @@ def opt_fang(v, net, lr, nfake, history, fixed_rand, init_model, last_50_model, 
         # Sort benign values per dimension
         sorted_benign, _ = torch.sort(benign_updates, dim=1) # (d, n_benign)
         
-        idx_max = -nfake // 2
-        idx_min = nfake // 2
+        idx_max = -nfake // 3 - 1
+        idx_min = nfake // 3
         
         target_max = sorted_benign[:, idx_max].reshape(-1, 1)
         target_min = sorted_benign[:, idx_min].reshape(-1, 1)

@@ -491,17 +491,22 @@ def specguard2(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model,
     ###
 
     # use median to aggregate the retained gradients
-    retained_param_list = [param_list[i] for i in retained_indices]
+
+    norms = [torch.norm(param_list[i]) for i in range(len(param_list))]
+    clip_norm = torch.median(torch.stack(norms))
+
+    retained_param_list = torch.cat([param_list[i] for i in retained_indices], dim=1)
+    retained_param_list = retained_param_list * torch.minimum(torch.tensor(1.0, device=device), clip_norm / (torch.norm(retained_param_list, dim=0, keepdim=True) + 1e-7))
     if len(retained_param_list) == 0:
         print("No reliable clients detected, skipping aggregation.")
         return param_list, sf,0
+    global_update = torch.mean(retained_param_list, dim=-1)
     
     # sorted_array = torch.sort(torch.cat(retained_param_list, dim=1), dim=-1)[0]
     # if sorted_array.shape[-1] % 2 == 1:
     #     global_update = sorted_array[:, int(sorted_array.shape[-1] / 2)]
     # else:
     #     global_update = (sorted_array[:, int((sorted_array.shape[-1] / 2 - 1))] + sorted_array[:, int((sorted_array.shape[-1] / 2))]) / 2   
-    global_update = torch.mean(torch.cat(retained_param_list, dim=1), dim=-1)
     # update the global model
     idx = 0
     with torch.no_grad():

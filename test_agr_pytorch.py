@@ -684,6 +684,33 @@ def main(args):
             # print(centered_grads.shape)
             U, S, Vt = torch.linalg.svd(centered_grads, full_matrices=False)
             V_ref = Vt[:V_ref_base_k, :] #(k,d)
+        
+        elif args.aggregation == "specguard3" and (V_ref is None or e % 20 == 0):
+            # need to compute the gradients for each server data and compute compact.SVD
+            server_grads = []
+            params = list(net.parameters())
+            for i in range(server_data.shape[0]):
+                # simply use net to compute the gradients
+
+                ## zero the gradients
+                for param in params:
+                    param.grad = None
+                
+                output = net(server_data[i].reshape((1,)+num_inputs[1:]).to(device))
+                loss = criterion(output, server_label[i].reshape((1,)).to(device).long())
+                loss.backward()
+                # nn.utils.clip_grad_norm_(net.parameters(), max_norm=10.0)
+                server_grads.append(torch.cat([param.grad.reshape(-1, 1) for param in params if param.grad is not None], dim=0).reshape(1, -1))
+            server_grads = torch.cat(server_grads, dim=0).reshape((server_data.shape[0], -1))
+
+            V_ref_base_k = 5
+            
+            ## center the gradients
+            
+            ## SVD (GPU-accelerated)
+            # print(centered_grads.shape)
+            U, S, Vt = torch.linalg.svd(server_grads, full_matrices=False)
+            V_ref = Vt[:V_ref_base_k, :] #(k,d)
 
         elif args.aggregation == "fltrust" and (server_grads is None or e % 1 == 0):
             ori_para = [param.data.clone() for param in net.parameters()]
@@ -744,6 +771,12 @@ def main(args):
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, V_ref)
         elif args.aggregation == "specguard2":
             return_pare_list, sf, retained_count = nd_aggregation.specguard2(
+                grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
+        elif args.aggregation == "specguard3":
+            return_pare_list, sf, retained_count = nd_aggregation.specguard3(
+                grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e, V_ref)
+        elif args.aggregation == "specguard4":
+            return_pare_list, sf, retained_count = nd_aggregation.specguard4(
                 grad_list, net, lr / batch_size, parti_nfake, byz, history,fixed_rand, init_model, last_50_model, last_grad, sf, e)
         elif args.aggregation == "fltrust":
             return_pare_list, sf = nd_aggregation.fltrust(

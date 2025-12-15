@@ -452,7 +452,7 @@ def specguard3(gradients, net, lr, nfake, byz, history, fixed_rand,  init_model,
 
     #G_client = flatten_and_stack_client_updates(param_list)  # Shape: (num_clients, d)
 
-    # G_client = torch.cat(param_list, dim=1).T  # Shape: (num_clients, d)
+    G_client = torch.cat(param_list, dim=1).T  # Shape: (num_clients, d)
     # sorted_G, _ = torch.sort(G_client, dim=0)
     # mean_G = torch.mean(sorted_G[nfake:-nfake, :], dim=0, keepdim=True)
     # print(F.cosine_similarity(G_client, mean_G, dim=1))
